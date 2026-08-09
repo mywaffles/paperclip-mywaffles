@@ -362,7 +362,12 @@ def webhook_key(
     return f"github-issues:v1:{config.github_webhook_hook_id}:{digest}"
 
 
-def wake_payload(config: Config, transition: Transition) -> Dict[str, object]:
+def wake_payload(
+    config: Config,
+    transition: Transition,
+    *,
+    issue_id: Optional[str] = None,
+) -> Dict[str, object]:
     acknowledge = str(config.state_path.parent / "monitorctl")
     payload: Dict[str, object] = {
         "event": transition.source_kind,
@@ -387,6 +392,8 @@ def wake_payload(config: Config, transition: Transition) -> Dict[str, object]:
             "the issue is still eligible but no safe coding slot exists; ignored only when it is no longer eligible."
         ),
     }
+    if issue_id:
+        payload["issueId"] = issue_id
     if transition.source_kind == WEBHOOK_EVENT_KIND:
         payload.update(
             {
@@ -1560,8 +1567,36 @@ class PaperclipClient:
         }
         return any(agent_id not in busy_ids for agent_id in agent_ids)
 
+    def mapped_issue_id(self, transition: Transition) -> Optional[str]:
+        response = self._run(
+            [
+                "issue",
+                "list",
+                "--company-id",
+                self.config.paperclip_company_id,
+                "--match",
+                transition.issue_url,
+            ]
+        )
+        rows = response if isinstance(response, list) else []
+        marker = f"GitHub: {transition.issue_url}"
+        matches = [
+            row
+            for row in rows
+            if isinstance(row, dict)
+            and isinstance(row.get("id"), str)
+            and marker in str(row.get("description") or "").splitlines()
+        ]
+        if len(matches) > 1:
+            identifiers = ", ".join(str(row.get("identifier") or row["id"]) for row in matches)
+            raise MonitorError(
+                f"GitHub issue {transition.issue_url} has multiple Paperclip mappings: {identifiers}"
+            )
+        return matches[0]["id"] if matches else None
+
     def wake(self, transition: Transition) -> Mapping[str, object]:
-        payload = wake_payload(self.config, transition)
+        issue_id = self.mapped_issue_id(transition)
+        payload = wake_payload(self.config, transition, issue_id=issue_id)
         source = (
             f"issues/{transition.github_action or 'event'}"
             if transition.source_kind == WEBHOOK_EVENT_KIND
@@ -1575,6 +1610,7 @@ class PaperclipClient:
         reason = (
             f"GitHub router task: handle only {transition.repository}#{transition.issue_number}; "
             f"url={transition.issue_url}; source={source}; taskKey={transition.idempotency_key}; "
+            f"paperclipIssueId={issue_id or 'none'}; "
             f"ackCommand={json.dumps(ack_prefix, separators=(',', ':'))} "
             "then routed|deferred|ignored --reason <concise reason>."
         )

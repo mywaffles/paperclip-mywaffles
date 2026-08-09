@@ -709,10 +709,24 @@ class MonitorTest(unittest.TestCase):
         now = when("2026-08-08T12:10:01Z")
         self.store.apply_snapshot(self.config, snapshot(todo), now)
         transition = self.store.next_transition(now)
-        runner = CaptureRunner([{"id": "wake-run", "status": "queued"}])
+        runner = CaptureRunner(
+            [
+                [
+                    {
+                        "id": "mapped-issue-id",
+                        "identifier": "MAT-80",
+                        "description": "GitHub: https://github.com/mywaffles/newco.core/issues/80",
+                    }
+                ],
+                {"id": "wake-run", "status": "queued"},
+            ]
+        )
         response = PaperclipClient(self.config, runner=runner).wake(transition)
         self.assertEqual(response["id"], "wake-run")
-        command = runner.calls[0][0]
+        lookup_command = runner.calls[0][0]
+        self.assertEqual(lookup_command[:3], ["paperclipai", "issue", "list"])
+        self.assertEqual(lookup_command[lookup_command.index("--match") + 1], transition.issue_url)
+        command = runner.calls[1][0]
         self.assertEqual(command[:3], ["paperclipai", "agent", "wake"])
         self.assertEqual(command[3], "dev-manager")
         self.assertEqual(command[command.index("--source") + 1], "automation")
@@ -728,6 +742,43 @@ class MonitorTest(unittest.TestCase):
         payload = json.loads(command[command.index("--payload") + 1])
         self.assertEqual(payload["issueNumber"], 80)
         self.assertEqual(payload["taskKey"], transition.idempotency_key)
+        self.assertEqual(payload["issueId"], "mapped-issue-id")
+
+    def test_paperclip_wake_without_mapping_has_no_issue_context(self):
+        backlog = issue_item("item-81", 81, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z")
+        self.baseline(backlog)
+        todo = issue_item("item-81", 81, "Todo", "2026-08-08T12:10:00Z", "2026-05-01T00:00:00Z")
+        now = when("2026-08-08T12:10:01Z")
+        self.store.apply_snapshot(self.config, snapshot(todo), now)
+        transition = self.store.next_transition(now)
+        runner = CaptureRunner([[], {"id": "wake-run", "status": "queued"}])
+
+        PaperclipClient(self.config, runner=runner).wake(transition)
+
+        command = runner.calls[1][0]
+        payload = json.loads(command[command.index("--payload") + 1])
+        self.assertNotIn("issueId", payload)
+        self.assertIn("paperclipIssueId=none", command[command.index("--reason") + 1])
+
+    def test_duplicate_paperclip_mappings_block_dispatch(self):
+        backlog = issue_item("item-82", 82, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z")
+        self.baseline(backlog)
+        todo = issue_item("item-82", 82, "Todo", "2026-08-08T12:10:00Z", "2026-05-01T00:00:00Z")
+        now = when("2026-08-08T12:10:01Z")
+        self.store.apply_snapshot(self.config, snapshot(todo), now)
+        transition = self.store.next_transition(now)
+        description = "GitHub: https://github.com/mywaffles/newco.core/issues/82"
+        runner = CaptureRunner(
+            [
+                [
+                    {"id": "one", "identifier": "MAT-1", "description": description},
+                    {"id": "two", "identifier": "MAT-2", "description": description},
+                ]
+            ]
+        )
+
+        with self.assertRaisesRegex(MonitorError, "multiple Paperclip mappings"):
+            PaperclipClient(self.config, runner=runner).wake(transition)
 
 
 if __name__ == "__main__":

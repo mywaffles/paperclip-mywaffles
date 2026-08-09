@@ -52,6 +52,11 @@ create a `Route GitHub ToDo issues` wrapper.
   `deferred` returns the same item to the durable queue; a merely existing or
   completed Paperclip run is not success. Missing acknowledgements retry after
   a bounded timeout, and each attempt has its own idempotency key.
+- Before waking Dev Manager, the monitor resolves an exact GitHub URL mapping.
+  Existing mappings are sent as `issueId`, binding the run to the real issue so
+  comments and assignment satisfy Paperclip's issue-run controls.
+- On a first encounter, Dev Manager creates the mapping and acknowledges
+  `deferred`; the next retry is issue-bound. No routing wrapper is created.
 - When the queue is empty, a direct periodic Dev Manager audit runs every 30
   minutes to reconcile missed work, CI failures, project placement, and stalled
   In Progress issues. It does not create a routing wrapper.
