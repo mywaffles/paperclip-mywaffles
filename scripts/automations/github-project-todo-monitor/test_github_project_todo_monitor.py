@@ -96,6 +96,7 @@ class FakePaperclip:
         self.runs = []
         self.wake_calls = []
         self.audit_calls = []
+        self.audit_response = None
         self.capacity_available = True
 
     def resolve_agent_id(self):
@@ -133,7 +134,7 @@ class FakePaperclip:
 
     def wake_periodic_audit(self, now):
         self.audit_calls.append(now)
-        return {"id": f"audit-{len(self.audit_calls)}", "status": "queued"}
+        return self.audit_response or {"id": f"audit-{len(self.audit_calls)}", "status": "queued"}
 
 
 class CaptureRunner:
@@ -571,6 +572,16 @@ class MonitorTest(unittest.TestCase):
         paperclip = FakePaperclip()
         monitor = TodoMonitor(self.config, self.store, FakeGitHub(snapshot()), paperclip, clock=lambda: self.initial)
         self.assertEqual(monitor.dispatch_once(), "periodic_audit_dispatched")
+        self.assertEqual(monitor.dispatch_once(), "idle")
+        self.assertEqual(len(paperclip.audit_calls), 1)
+
+    def test_skipped_periodic_audit_is_not_retried_every_poll(self):
+        self.baseline(issue_item("item-54", 54, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z"))
+        paperclip = FakePaperclip()
+        paperclip.audit_response = {"status": "skipped", "reason": "wakeup_skipped"}
+        monitor = TodoMonitor(self.config, self.store, FakeGitHub(snapshot()), paperclip, clock=lambda: self.initial)
+
+        self.assertEqual(monitor.dispatch_once(), "periodic_audit_skipped")
         self.assertEqual(monitor.dispatch_once(), "idle")
         self.assertEqual(len(paperclip.audit_calls), 1)
 

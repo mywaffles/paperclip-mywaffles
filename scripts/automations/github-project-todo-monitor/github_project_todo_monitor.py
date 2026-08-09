@@ -866,6 +866,9 @@ class StateStore:
         with self.db:
             self.set_metadata("last_periodic_audit_at", isoformat(now))
             self.set_metadata("last_periodic_audit_run_id", run_id)
+            self.db.execute(
+                "UPDATE monitor_status SET last_dispatch_error = NULL WHERE singleton = 1"
+            )
 
     def record_daemon_heartbeat(self, now: dt.datetime, *, started_at: Optional[dt.datetime] = None) -> None:
         now_text = isoformat(now)
@@ -1701,6 +1704,8 @@ class PaperclipClient:
                 f"github-periodic-audit:v1:{bucket}",
             ]
         )
+        if isinstance(response, dict) and response.get("status") == "skipped":
+            return response
         if not isinstance(response, dict) or not isinstance(response.get("id"), str):
             raise CommandError(f"Paperclip periodic audit wake was not accepted: {compact_error(response)}")
         return response
@@ -1794,8 +1799,9 @@ class TodoMonitor:
                 return "retry_wait"
             if self.store.periodic_audit_due(self.config, now):
                 run = self.paperclip.wake_periodic_audit(now)
-                self.store.record_periodic_audit(self.clock(), str(run["id"]))
-                return "periodic_audit_dispatched"
+                run_id = run.get("id") if isinstance(run.get("id"), str) else "skipped"
+                self.store.record_periodic_audit(self.clock(), run_id)
+                return "periodic_audit_dispatched" if run_id != "skipped" else "periodic_audit_skipped"
             return "idle"
         if transition.source_kind == PROJECT_EVENT_KIND and not self.paperclip.coding_capacity_available():
             return "coding_capacity_full"

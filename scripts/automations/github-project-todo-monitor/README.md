@@ -64,7 +64,8 @@ create a `Route GitHub ToDo issues` wrapper.
   `deferred`; the next retry is issue-bound. No routing wrapper is created.
 - When the queue is empty, a direct periodic Dev Manager audit runs every 30
   minutes to reconcile missed work, CI failures, project placement, and stalled
-  In Progress issues. It does not create a routing wrapper.
+  In Progress issues. A Paperclip-skipped audit still advances the interval so
+  the daemon does not retry every poll. It does not create a routing wrapper.
 - Logs are JSON lines rotated at 1 MiB with three backups. launchd stdout and
   stderr go to `/dev/null`, so there is no second unbounded log.
 
