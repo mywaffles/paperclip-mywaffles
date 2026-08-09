@@ -398,6 +398,24 @@ export {
 } from "./document-annotation.js";
 
 export {
+  ISSUE_TYPE_FIELD_KINDS,
+  issueTypeFieldKindSchema,
+  issueTypeFieldDefinitionSchema,
+  issueTypeFieldDefinitionsSchema,
+  issueCustomFieldValueSchema,
+  issueCustomFieldValuesSchema,
+  createIssueTypeSchema,
+  updateIssueTypeSchema,
+  buildIssueCustomFieldValuesSchema,
+  type IssueTypeFieldKind,
+  type IssueTypeFieldDefinition,
+  type IssueCustomFieldValue,
+  type IssueCustomFieldValues,
+  type CreateIssueType,
+  type UpdateIssueType,
+} from "./issue-type.js";
+
+export {
   createIssueSchema,
   createIssueInputSchema,
   createChildIssueSchema,

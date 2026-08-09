@@ -1,6 +1,6 @@
 import { memo, useState, useEffect, useRef, useCallback, useMemo, type ChangeEvent, type CSSProperties, type DragEvent, type RefObject } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import type { AgentEnvConfig, EnvBinding, IssueWorkMode } from "@paperclipai/shared";
+import type { AgentEnvConfig, EnvBinding, IssueCustomFieldValues, IssueType, IssueWorkMode } from "@paperclipai/shared";
 import { pickTextColorForSolidBg } from "@/lib/color-contrast";
 import { useDialog } from "../context/DialogContext";
 import { useCompany } from "../context/CompanyContext";
@@ -79,6 +79,7 @@ import { AgentIcon } from "./AgentIconPicker";
 import { InlineEntitySelector, type InlineEntityOption } from "./InlineEntitySelector";
 import { getTrustPreset } from "../lib/trust-policy-ui";
 import { ReusableExecutionWorkspaceSelect } from "./ReusableExecutionWorkspaceSelect";
+import { IssueCustomFields } from "./IssueCustomFields";
 
 const DRAFT_KEY = "paperclip:issue-draft";
 const DEBOUNCE_MS = 800;
@@ -106,6 +107,8 @@ interface IssueDraft {
   selectedExecutionWorkspaceId?: string;
   useIsolatedExecutionWorkspace?: boolean;
   workMode?: IssueWorkMode;
+  issueTypeId?: string;
+  customFields?: IssueCustomFieldValues;
 }
 
 type StagedIssueFile = {
@@ -448,6 +451,8 @@ export function NewIssueDialog() {
   const [executionWorkspaceMode, setExecutionWorkspaceMode] = useState<string>("shared_workspace");
   const [selectedExecutionWorkspaceId, setSelectedExecutionWorkspaceId] = useState("");
   const [workMode, setWorkMode] = useState<IssueWorkMode>("standard");
+  const [issueTypeId, setIssueTypeId] = useState("");
+  const [customFields, setCustomFields] = useState<IssueCustomFieldValues>({});
   const [expanded, setExpanded] = useState(false);
   const [dialogCompanyId, setDialogCompanyId] = useState<string | null>(null);
   const [stagedFiles, setStagedFiles] = useState<StagedIssueFile[]>([]);
@@ -455,6 +460,7 @@ export function NewIssueDialog() {
   const draftTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const executionWorkspaceDefaultProjectId = useRef<string | null>(null);
   const initializationKeyRef = useRef<string | null>(null);
+  const issueTypeSelectionInitializedRef = useRef(false);
 
   const effectiveCompanyId = dialogCompanyId ?? selectedCompanyId;
   const dialogCompany = companies.find((c) => c.id === effectiveCompanyId) ?? selectedCompany;
@@ -486,6 +492,15 @@ export function NewIssueDialog() {
     queryFn: () => projectsApi.list(effectiveCompanyId!),
     enabled: !!effectiveCompanyId && newIssueOpen,
   });
+  const { data: issueTypes } = useQuery({
+    queryKey: queryKeys.issues.issueTypes(effectiveCompanyId!),
+    queryFn: () => issuesApi.listIssueTypes(effectiveCompanyId!),
+    enabled: !!effectiveCompanyId && newIssueOpen,
+  });
+  const selectedIssueType = useMemo<IssueType | null>(
+    () => (issueTypes ?? []).find((candidate) => candidate.id === issueTypeId) ?? null,
+    [issueTypeId, issueTypes],
+  );
   const {
     data: reusableExecutionWorkspaces,
     isLoading: reusableExecutionWorkspacesLoading,
@@ -682,6 +697,8 @@ export function NewIssueDialog() {
       executionWorkspaceMode,
       selectedExecutionWorkspaceId,
       workMode,
+      issueTypeId,
+      customFields,
     });
   }, [
     newIssueOpen,
@@ -701,6 +718,8 @@ export function NewIssueDialog() {
     executionWorkspaceMode,
     selectedExecutionWorkspaceId,
     workMode,
+    issueTypeId,
+    customFields,
   ]);
 
   const handleTitleChange = useCallback((nextTitle: string) => {
@@ -740,6 +759,8 @@ export function NewIssueDialog() {
     executionWorkspaceMode,
     selectedExecutionWorkspaceId,
     workMode,
+    issueTypeId,
+    customFields,
     newIssueOpen,
     queueDraftSave,
   ]);
@@ -748,6 +769,7 @@ export function NewIssueDialog() {
   useEffect(() => {
     if (!newIssueOpen) {
       initializationKeyRef.current = null;
+      issueTypeSelectionInitializedRef.current = false;
       return;
     }
     const initializationKey = `${selectedCompanyId ?? ""}:${JSON.stringify(newIssueDefaults)}`;
@@ -778,6 +800,9 @@ export function NewIssueDialog() {
       setExecutionWorkspaceMode(defaultExecutionWorkspaceMode);
       setWorkMode(nextWorkMode);
       setSelectedExecutionWorkspaceId(newIssueDefaults.executionWorkspaceId ?? "");
+      setIssueTypeId(newIssueDefaults.issueTypeId ?? "");
+      setCustomFields(newIssueDefaults.customFields ?? {});
+      issueTypeSelectionInitializedRef.current = newIssueDefaults.issueTypeId !== undefined;
       executionWorkspaceDefaultProjectId.current = hasExplicitProjectWorkspaceId || defaultProject
         ? defaultProjectId || null
         : null;
@@ -805,6 +830,9 @@ export function NewIssueDialog() {
       setExecutionWorkspaceMode(defaultExecutionWorkspaceModeForIssueDefaults(newIssueDefaults, defaultProject));
       setWorkMode(nextWorkMode);
       setSelectedExecutionWorkspaceId(newIssueDefaults.executionWorkspaceId ?? "");
+      setIssueTypeId(newIssueDefaults.issueTypeId ?? "");
+      setCustomFields(newIssueDefaults.customFields ?? {});
+      issueTypeSelectionInitializedRef.current = newIssueDefaults.issueTypeId !== undefined;
       executionWorkspaceDefaultProjectId.current = hasExplicitProjectWorkspaceId || newIssueDefaults.executionWorkspaceId || defaultProject
         ? defaultProjectId || null
         : null;
@@ -854,6 +882,9 @@ export function NewIssueDialog() {
           ? (newIssueDefaults.executionWorkspaceId ?? "")
           : (draft.selectedExecutionWorkspaceId ?? ""),
       );
+      setIssueTypeId(newIssueDefaults.issueTypeId ?? draft.issueTypeId ?? "");
+      setCustomFields(newIssueDefaults.customFields ?? draft.customFields ?? {});
+      issueTypeSelectionInitializedRef.current = newIssueDefaults.issueTypeId !== undefined || draft.issueTypeId !== undefined;
       executionWorkspaceDefaultProjectId.current = hasExplicitProjectWorkspaceId || hasExplicitExecutionWorkspaceId || draft.projectWorkspaceId || restoredProject
         ? restoredProjectId || null
         : null;
@@ -880,11 +911,22 @@ export function NewIssueDialog() {
       setAssigneeChrome(false);
       setExecutionWorkspaceMode(defaultExecutionWorkspaceModeForIssueDefaults(newIssueDefaults, defaultProject));
       setSelectedExecutionWorkspaceId(newIssueDefaults.executionWorkspaceId ?? "");
+      setIssueTypeId(newIssueDefaults.issueTypeId ?? "");
+      setCustomFields(newIssueDefaults.customFields ?? {});
+      issueTypeSelectionInitializedRef.current = newIssueDefaults.issueTypeId !== undefined;
       executionWorkspaceDefaultProjectId.current = hasExplicitProjectWorkspaceId || newIssueDefaults.executionWorkspaceId || defaultProject
         ? defaultProjectId || null
         : null;
     }
   }, [newIssueOpen, newIssueDefaults, orderedProjects, selectedCompanyId, setIssueText]);
+
+  useEffect(() => {
+    if (!newIssueOpen || issueTypeSelectionInitializedRef.current || !issueTypes) return;
+    const defaultIssueType = issueTypes.find((candidate) => candidate.isDefault) ?? null;
+    setIssueTypeId(defaultIssueType?.id ?? "");
+    setCustomFields({});
+    issueTypeSelectionInitializedRef.current = true;
+  }, [issueTypes, newIssueOpen]);
 
   useEffect(() => {
     if (!supportsAssigneeOverrides) {
@@ -945,6 +987,8 @@ export function NewIssueDialog() {
     setExecutionWorkspaceMode("shared_workspace");
     setSelectedExecutionWorkspaceId("");
     setWorkMode("standard");
+    setIssueTypeId("");
+    setCustomFields({});
     setExpanded(false);
     setDialogCompanyId(null);
     setStagedFiles([]);
@@ -952,6 +996,7 @@ export function NewIssueDialog() {
     setCompanyOpen(false);
     executionWorkspaceDefaultProjectId.current = null;
     initializationKeyRef.current = null;
+    issueTypeSelectionInitializedRef.current = false;
   }
 
   function handleCompanyChange(companyId: string) {
@@ -975,6 +1020,9 @@ export function NewIssueDialog() {
     setExecutionWorkspaceMode("shared_workspace");
     setSelectedExecutionWorkspaceId("");
     setWorkMode("standard");
+    setIssueTypeId("");
+    setCustomFields({});
+    issueTypeSelectionInitializedRef.current = false;
   }
 
   function discardDraft() {
@@ -1026,6 +1074,8 @@ export function NewIssueDialog() {
       status,
       priority: priority || "medium",
       workMode,
+      issueTypeId: issueTypeId || null,
+      customFields: issueTypeId ? customFields : {},
       ...(selectedAssigneeAgentId ? { assigneeAgentId: selectedAssigneeAgentId } : {}),
       ...(selectedAssigneeUserId ? { assigneeUserId: selectedAssigneeUserId } : {}),
       ...(newIssueDefaults.parentId ? { parentId: newIssueDefaults.parentId } : {}),
@@ -1945,6 +1995,21 @@ export function NewIssueDialog() {
             </div>
           )}
 
+          {selectedIssueType && selectedIssueType.fieldDefinitions.length > 0 ? (
+            <div className="border-t border-border px-4 py-3">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedIssueType.color }} />
+                <span className="text-xs font-medium text-muted-foreground">{selectedIssueType.name} fields</span>
+              </div>
+              <IssueCustomFields
+                fields={selectedIssueType.fieldDefinitions}
+                values={customFields}
+                onChange={setCustomFields}
+                disabled={createIssue.isPending}
+              />
+            </div>
+          ) : null}
+
           {/* Description */}
           <div
             className="border-t border-border/60 px-4 pb-2 pt-3"
@@ -2043,6 +2108,25 @@ export function NewIssueDialog() {
 
         {/* Property chips bar */}
         <div className="flex items-center gap-1.5 px-4 py-2 border-t border-border flex-wrap shrink-0">
+          <label className="inline-flex items-center gap-1.5 rounded-md border border-border px-2 py-1 text-xs text-muted-foreground hover:bg-accent/50">
+            <Tag className="h-3 w-3" />
+            <select
+              aria-label="Issue type"
+              className="max-w-36 bg-transparent text-xs text-foreground outline-none"
+              value={issueTypeId}
+              onChange={(event) => {
+                setIssueTypeId(event.target.value);
+                setCustomFields({});
+                issueTypeSelectionInitializedRef.current = true;
+              }}
+            >
+              <option value="">Task</option>
+              {(issueTypes ?? []).map((issueType) => (
+                <option key={issueType.id} value={issueType.id}>{issueType.name}</option>
+              ))}
+            </select>
+          </label>
+
           {/* Status chip */}
           <Popover open={statusOpen} onOpenChange={setStatusOpen}>
             <PopoverTrigger asChild>

@@ -15,6 +15,9 @@ import type {
   IssueComment,
   IssueDocument,
   IssueLabel,
+  IssueType,
+  CreateIssueType,
+  UpdateIssueType,
   IssueRecoveryAction,
   IssueRetryNowResponse,
   StalledReviewDecision,
@@ -149,6 +152,13 @@ export const issuesApi = {
   createLabel: (companyId: string, data: { name: string; color: string }) =>
     api.post<IssueLabel>(`/companies/${companyId}/labels`, data),
   deleteLabel: (id: string) => api.delete<IssueLabel>(`/labels/${id}`),
+  listIssueTypes: (companyId: string, options: { includeArchived?: boolean } = {}) =>
+    api.get<IssueType[]>(`/companies/${companyId}/issue-types${options.includeArchived ? "?includeArchived=true" : ""}`),
+  createIssueType: (companyId: string, data: CreateIssueType) =>
+    api.post<IssueType>(`/companies/${companyId}/issue-types`, data),
+  updateIssueType: (id: string, data: UpdateIssueType) =>
+    api.patch<IssueType>(`/issue-types/${id}`, data),
+  archiveIssueType: (id: string) => api.delete<IssueType>(`/issue-types/${id}`),
   get: (id: string, options?: RequestOptions) => options
     ? api.get<Issue>(`/issues/${id}`, options)
     : api.get<Issue>(`/issues/${id}`),

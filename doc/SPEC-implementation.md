@@ -220,8 +220,22 @@ Routine execution issues add a routine-scoped env overlay after project env and 
 
 ## 7.6 `issues` (core task entity)
 
+- `issue_types` defines reusable company-scoped issue categories:
+  - `id` uuid pk
+  - `company_id` uuid fk not null
+  - `key` text not null, unique per company
+  - `name` text not null
+  - `description` text null
+  - `color` text not null
+  - `icon` text null
+  - `field_definitions` jsonb not null default `[]`
+  - `is_default` boolean not null default false
+  - `archived_at` timestamptz null
+  - supported field kinds are `text`, `number`, `boolean`, `select`, `multi_select`, `date`, `datetime`, and `url`
 - `id` uuid pk
 - `company_id` uuid fk not null
+- `issue_type_id` uuid fk `issue_types.id` null
+- `custom_fields` jsonb not null default `{}`
 - `project_id` uuid fk `projects.id` null
 - `project_workspace_id` uuid fk `project_workspaces.id` null
 - `goal_id` uuid fk `goals.id` null
@@ -256,6 +270,10 @@ Routine execution issues add a routine-scoped env overlay after project env and 
 Invariants:
 
 - single assignee only
+- issue type and custom field definitions are company-scoped
+- custom field values must validate against the selected issue type; untyped issues cannot store custom fields
+- at most one active issue type is the company default; it applies when issue creation omits an explicit type
+- archived issue types remain attached to existing issues but cannot be assigned to new issues
 - task must trace to company goal chain via `goal_id`, `parent_id`, or project-goal linkage
 - `in_progress` requires assignee
 - terminal states: `done | cancelled`
@@ -929,6 +947,10 @@ instances return `404`.
 
 ## 10.4 Tasks (Issues)
 
+- `GET /companies/:companyId/issue-types`
+- `POST /companies/:companyId/issue-types` (board-only)
+- `PATCH /issue-types/:issueTypeId` (board-only)
+- `DELETE /issue-types/:issueTypeId` (board-only soft archive)
 - `GET /companies/:companyId/issues`
 - `POST /companies/:companyId/issues`
 - `GET /issues/:issueId`

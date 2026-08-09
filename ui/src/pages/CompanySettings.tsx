@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Settings, Download, Upload } from "lucide-react";
 import { CompanyPatternIcon } from "../components/CompanyPatternIcon";
+import { IssueTypeSettings } from "../components/IssueTypeSettings";
 import {
   Field,
   ToggleField,
@@ -471,6 +472,14 @@ export function CompanySettings() {
           )}
         </div>
       )}
+
+      {/* Issues */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Issues
+        </div>
+        <IssueTypeSettings companyId={selectedCompanyId!} />
+      </div>
 
       {/* Hiring */}
       <div className="space-y-4" data-testid="company-settings-team-section">

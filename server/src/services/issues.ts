@@ -30,6 +30,7 @@ import {
   issueDocuments,
   issueReadStates,
   issueThreadInteractions,
+  issueTypes,
   issues,
   labels,
   projectWorkspaces,
@@ -88,6 +89,7 @@ import {
 import { mergeExecutionWorkspaceConfig } from "./execution-workspaces.js";
 import { buildInitialIssueMonitorFields, normalizeIssueExecutionPolicy } from "./issue-execution-policy.js";
 import { instanceSettingsService } from "./instance-settings.js";
+import { validateIssueCustomFieldsForType } from "./issue-types.js";
 import { redactCurrentUserText } from "../log-redaction.js";
 import { redactSensitiveText } from "../redaction.js";
 import { resolveIssueGoalId, resolveNextIssueGoalId } from "./issue-goal-fallback.js";
@@ -3081,6 +3083,8 @@ async function listIssueReviewAttentionMap(
 const issueListSelect = {
   id: issues.id,
   companyId: issues.companyId,
+  issueTypeId: issues.issueTypeId,
+  customFields: issues.customFields,
   projectId: issues.projectId,
   projectWorkspaceId: issues.projectWorkspaceId,
   goalId: issues.goalId,
@@ -6974,6 +6978,28 @@ export function issueService(db: Db) {
           return withRelations;
         }
 
+        const selectedIssueType = issueData.issueTypeId === undefined
+          ? await tx
+              .select()
+              .from(issueTypes)
+              .where(and(
+                eq(issueTypes.companyId, companyId),
+                eq(issueTypes.isDefault, true),
+                isNull(issueTypes.archivedAt),
+              ))
+              .then((rows) => rows[0] ?? null)
+          : null;
+        const nextIssueTypeId = issueData.issueTypeId === undefined
+          ? selectedIssueType?.id ?? null
+          : issueData.issueTypeId;
+        const validatedCustomFields = await validateIssueCustomFieldsForType(tx, {
+          companyId,
+          issueTypeId: nextIssueTypeId,
+          customFields: issueData.customFields ?? {},
+        });
+        issueData.issueTypeId = nextIssueTypeId;
+        issueData.customFields = validatedCustomFields.customFields;
+
         const defaultCompanyGoal = await getDefaultCompanyGoal(tx, companyId);
         let projectWorkspaceId = issueData.projectWorkspaceId ?? null;
         let executionWorkspaceId = issueData.executionWorkspaceId ?? null;
@@ -7479,6 +7505,23 @@ export function issueService(db: Db) {
         ...issueData,
         updatedAt: new Date(),
       };
+      if (issueData.issueTypeId !== undefined || issueData.customFields !== undefined) {
+        const issueTypeChanged = issueData.issueTypeId !== undefined && issueData.issueTypeId !== existing.issueTypeId;
+        const nextIssueTypeId = issueData.issueTypeId !== undefined ? issueData.issueTypeId : existing.issueTypeId;
+        const nextCustomFields = issueData.customFields !== undefined
+          ? issueData.customFields
+          : issueTypeChanged
+            ? {}
+            : existing.customFields;
+        const validatedCustomFields = await validateIssueCustomFieldsForType(dbOrTx, {
+          companyId: existing.companyId,
+          issueTypeId: nextIssueTypeId,
+          customFields: nextCustomFields,
+          allowArchived: nextIssueTypeId === existing.issueTypeId,
+        });
+        patch.issueTypeId = nextIssueTypeId;
+        patch.customFields = validatedCustomFields.customFields;
+      }
       if (existing.status !== "blocked" && issueData.status === "blocked") {
         patch.blockedTransitionAt = patch.updatedAt;
         patch.blockedOwnerNotifiedAt = null;

@@ -48,6 +48,7 @@ export {
 export { issueTreeControlService } from "./issue-tree-control.js";
 export { issueApprovalService } from "./issue-approvals.js";
 export { issueReferenceService } from "./issue-references.js";
+export { issueTypeService, validateIssueCustomFieldsForType } from "./issue-types.js";
 export { issueRecoveryActionService } from "./issue-recovery-actions.js";
 export {
   stalledReviewDecisionService,

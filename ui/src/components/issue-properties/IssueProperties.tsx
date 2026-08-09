@@ -5,7 +5,7 @@ import { pickTextColorForPillBg } from "@/lib/color-contrast";
 import { issueStatusText } from "@/lib/status-colors";
 import { copyTextToClipboard } from "@/lib/clipboard";
 import { Link } from "@/lib/router";
-import { deriveOriginatingActor, type Issue, type IssueLabel } from "@paperclipai/shared";
+import { deriveOriginatingActor, type Issue, type IssueCustomFieldValues, type IssueLabel } from "@paperclipai/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { accessApi } from "../../api/access";
 import { agentsApi } from "../../api/agents";
@@ -75,6 +75,7 @@ import {
   type WorkspaceRuntimeControlRequest,
 } from "../WorkspaceRuntimeControls";
 import { ExternalObjectRows } from "./external-object-rows";
+import { IssueCustomFields } from "../IssueCustomFields";
 import {
   asRecord,
   compactRecord,
@@ -243,6 +244,8 @@ export function IssueProperties({
   const [newLabelName, setNewLabelName] = useState("");
   // token-extraction: allowlisted — color-picker seed state, persisted into label-create payload; a var() string would break that payload.
   const [newLabelColor, setNewLabelColor] = useState("#6366f1");
+  const [issueTypeDraftId, setIssueTypeDraftId] = useState(issue.issueTypeId ?? "");
+  const [customFieldsDraft, setCustomFieldsDraft] = useState<IssueCustomFieldValues>(issue.customFields ?? {});
   const [monitorAtInput, setMonitorAtInput] = useState(() => toDateTimeLocalValue(issue.executionPolicy?.monitor?.nextCheckAt));
   const [monitorNotesInput, setMonitorNotesInput] = useState(issue.executionPolicy?.monitor?.notes ?? "");
   const [monitorServiceInput, setMonitorServiceInput] = useState(issue.executionPolicy?.monitor?.serviceName ?? "");
@@ -260,6 +263,11 @@ export function IssueProperties({
     setSubTasksExpanded(false);
     setRelatedTasksExpanded(false);
   }, [issue.id]);
+
+  useEffect(() => {
+    setIssueTypeDraftId(issue.issueTypeId ?? "");
+    setCustomFieldsDraft(issue.customFields ?? {});
+  }, [issue.customFields, issue.issueTypeId]);
 
   const { data: session } = useQuery({
     queryKey: queryKeys.auth.session,
@@ -297,6 +305,17 @@ export function IssueProperties({
     queryFn: () => issuesApi.listLabels(companyId!),
     enabled: !!companyId,
   });
+  const { data: issueTypes } = useQuery({
+    queryKey: queryKeys.issues.issueTypes(companyId!, true),
+    queryFn: () => issuesApi.listIssueTypes(companyId!, { includeArchived: true }),
+    enabled: !!companyId,
+  });
+  const selectedIssueType = useMemo(
+    () => (issueTypes ?? []).find((candidate) => candidate.id === issueTypeDraftId) ?? null,
+    [issueTypeDraftId, issueTypes],
+  );
+  const customFieldsDirty = issueTypeDraftId !== (issue.issueTypeId ?? "")
+    || JSON.stringify(customFieldsDraft) !== JSON.stringify(issue.customFields ?? {});
 
   const { data: allIssues, isFetching: isFetchingIssuePickerIssues } = useQuery({
     queryKey: queryKeys.issues.list(companyId!),
@@ -2017,6 +2036,59 @@ export function IssueProperties({
   const propertiesBody = (
     <div>
       <PropertySection title="Triage" first>
+        <PropertyRow label="Type">
+          <select
+            aria-label="Issue type"
+            className="min-w-0 max-w-full rounded-md border border-border bg-transparent px-2 py-1 text-sm outline-none"
+            value={issueTypeDraftId}
+            onChange={(event) => {
+              setIssueTypeDraftId(event.target.value);
+              setCustomFieldsDraft({});
+            }}
+          >
+            <option value="">Task</option>
+            {(issueTypes ?? []).map((issueType) => (
+              <option key={issueType.id} value={issueType.id} disabled={Boolean(issueType.archivedAt && issueType.id !== issue.issueTypeId)}>
+                {issueType.name}{issueType.archivedAt ? " (archived)" : ""}
+              </option>
+            ))}
+          </select>
+        </PropertyRow>
+
+        {selectedIssueType?.fieldDefinitions.length ? (
+          <div className="space-y-3 border-b border-border py-3">
+            <IssueCustomFields
+              fields={selectedIssueType.fieldDefinitions}
+              values={customFieldsDraft}
+              onChange={setCustomFieldsDraft}
+            />
+          </div>
+        ) : null}
+
+        {customFieldsDirty ? (
+          <div className="flex items-center gap-2 border-b border-border py-3">
+            <Button
+              size="sm"
+              onClick={() => onUpdate({
+                issueTypeId: issueTypeDraftId || null,
+                customFields: issueTypeDraftId ? customFieldsDraft : {},
+              })}
+            >
+              Save type fields
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              onClick={() => {
+                setIssueTypeDraftId(issue.issueTypeId ?? "");
+                setCustomFieldsDraft(issue.customFields ?? {});
+              }}
+            >
+              Cancel
+            </Button>
+          </div>
+        ) : null}
+
         <PropertyRow label="Status">
           <StatusIcon
             status={issue.status}

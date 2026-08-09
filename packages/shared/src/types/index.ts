@@ -690,6 +690,7 @@ export type {
   IssueAncestorGoal,
   IssueAttachment,
   IssueLabel,
+  IssueType,
   IssueWatchdog,
   IssueWatchdogStatus,
   IssueWatchdogSummary,

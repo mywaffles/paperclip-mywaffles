@@ -18,12 +18,16 @@ import { heartbeatRuns } from "./heartbeat_runs.js";
 import { projectWorkspaces } from "./project_workspaces.js";
 import { executionWorkspaces } from "./execution_workspaces.js";
 import type { IssueReviewPolicy, IssueUnblockDescriptor, SourceTrustMetadata } from "@paperclipai/shared";
+import type { IssueCustomFieldValues } from "@paperclipai/shared";
+import { issueTypes } from "./issue_types.js";
 
 export const issues = pgTable(
   "issues",
   {
     id: uuid("id").primaryKey().defaultRandom(),
     companyId: uuid("company_id").notNull().references(() => companies.id),
+    issueTypeId: uuid("issue_type_id").references(() => issueTypes.id, { onDelete: "set null" }),
+    customFields: jsonb("custom_fields").$type<IssueCustomFieldValues>().notNull().default({}),
     projectId: uuid("project_id").references(() => projects.id),
     projectWorkspaceId: uuid("project_workspace_id").references(() => projectWorkspaces.id, { onDelete: "set null" }),
     goalId: uuid("goal_id").references(() => goals.id),
@@ -78,6 +82,7 @@ export const issues = pgTable(
   },
   (table) => ({
     companyStatusIdx: index("issues_company_status_idx").on(table.companyId, table.status),
+    companyIssueTypeIdx: index("issues_company_issue_type_idx").on(table.companyId, table.issueTypeId),
     companyHarnessKindIdx: index("issues_company_harness_kind_idx").on(table.companyId, table.harnessKind),
     assigneeStatusIdx: index("issues_company_assignee_status_idx").on(
       table.companyId,
