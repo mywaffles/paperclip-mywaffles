@@ -53,8 +53,10 @@ create a `Route GitHub ToDo issues` wrapper.
   completed Paperclip run is not success. Missing acknowledgements retry after
   a bounded timeout, and each attempt has its own idempotency key.
 - Before waking Dev Manager, the monitor resolves an exact GitHub URL mapping.
-  Existing mappings are sent as `issueId`, binding the run to the real issue so
-  comments and assignment satisfy Paperclip's issue-run controls.
+  An unassigned backlog mapping for a Project Todo event is parked with Dev
+  Manager without waking it, then sent as `issueId`. This binds the explicit
+  router run to the real issue so comments and assignment satisfy Paperclip's
+  issue-run controls. Mappings already owned by another agent are not stolen.
 - On a first encounter, Dev Manager creates the mapping and acknowledges
   `deferred`; the next retry is issue-bound. No routing wrapper is created.
 - When the queue is empty, a direct periodic Dev Manager audit runs every 30

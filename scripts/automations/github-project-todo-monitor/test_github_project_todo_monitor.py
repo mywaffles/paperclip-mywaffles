@@ -716,8 +716,12 @@ class MonitorTest(unittest.TestCase):
                         "id": "mapped-issue-id",
                         "identifier": "MAT-80",
                         "description": "GitHub: https://github.com/mywaffles/newco.core/issues/80",
+                        "status": "backlog",
+                        "assigneeAgentId": None,
                     }
                 ],
+                [{"id": "manager-id", "urlKey": "dev-manager", "name": "Dev Manager"}],
+                {"id": "mapped-issue-id", "status": "backlog", "assigneeAgentId": "manager-id"},
                 {"id": "wake-run", "status": "queued"},
             ]
         )
@@ -726,7 +730,11 @@ class MonitorTest(unittest.TestCase):
         lookup_command = runner.calls[0][0]
         self.assertEqual(lookup_command[:3], ["paperclipai", "issue", "list"])
         self.assertEqual(lookup_command[lookup_command.index("--match") + 1], transition.issue_url)
-        command = runner.calls[1][0]
+        update_command = runner.calls[2][0]
+        self.assertEqual(update_command[:3], ["paperclipai", "issue", "update"])
+        self.assertEqual(update_command[3], "mapped-issue-id")
+        self.assertEqual(update_command[update_command.index("--assignee-agent-id") + 1], "manager-id")
+        command = runner.calls[3][0]
         self.assertEqual(command[:3], ["paperclipai", "agent", "wake"])
         self.assertEqual(command[3], "dev-manager")
         self.assertEqual(command[command.index("--source") + 1], "automation")
@@ -743,6 +751,36 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(payload["issueNumber"], 80)
         self.assertEqual(payload["taskKey"], transition.idempotency_key)
         self.assertEqual(payload["issueId"], "mapped-issue-id")
+
+    def test_mapping_owned_by_coder_is_not_stolen(self):
+        backlog = issue_item("item-83", 83, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z")
+        self.baseline(backlog)
+        todo = issue_item("item-83", 83, "Todo", "2026-08-08T12:10:00Z", "2026-05-01T00:00:00Z")
+        now = when("2026-08-08T12:10:01Z")
+        self.store.apply_snapshot(self.config, snapshot(todo), now)
+        transition = self.store.next_transition(now)
+        runner = CaptureRunner(
+            [
+                [
+                    {
+                        "id": "mapped-issue-id",
+                        "identifier": "MAT-83",
+                        "description": "GitHub: https://github.com/mywaffles/newco.core/issues/83",
+                        "status": "in_progress",
+                        "assigneeAgentId": "coder-id",
+                    }
+                ],
+                [{"id": "manager-id", "urlKey": "dev-manager", "name": "Dev Manager"}],
+                {"id": "wake-run", "status": "queued"},
+            ]
+        )
+
+        PaperclipClient(self.config, runner=runner).wake(transition)
+
+        self.assertEqual(len(runner.calls), 3)
+        command = runner.calls[2][0]
+        payload = json.loads(command[command.index("--payload") + 1])
+        self.assertNotIn("issueId", payload)
 
     def test_paperclip_wake_without_mapping_has_no_issue_context(self):
         backlog = issue_item("item-81", 81, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z")

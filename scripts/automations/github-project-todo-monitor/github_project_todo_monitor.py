@@ -1592,7 +1592,34 @@ class PaperclipClient:
             raise MonitorError(
                 f"GitHub issue {transition.issue_url} has multiple Paperclip mappings: {identifiers}"
             )
-        return matches[0]["id"] if matches else None
+        if not matches:
+            return None
+        mapped = matches[0]
+        manager_id = self.resolve_agent_id()
+        assignee_id = mapped.get("assigneeAgentId")
+        if assignee_id == manager_id:
+            return mapped["id"]
+        if (
+            transition.source_kind == PROJECT_EVENT_KIND
+            and transition.to_status == self.config.target_status
+            and mapped.get("status") == "backlog"
+            and not assignee_id
+        ):
+            updated = self._run(
+                [
+                    "issue",
+                    "update",
+                    mapped["id"],
+                    "--assignee-agent-id",
+                    manager_id,
+                ]
+            )
+            if not isinstance(updated, dict) or updated.get("assigneeAgentId") != manager_id:
+                raise MonitorError(
+                    f"Paperclip mapping {mapped['id']} was not assigned to Dev Manager before wake"
+                )
+            return mapped["id"]
+        return None
 
     def wake(self, transition: Transition) -> Mapping[str, object]:
         issue_id = self.mapped_issue_id(transition)
