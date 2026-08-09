@@ -51,7 +51,8 @@ create a `Route GitHub ToDo issues` wrapper.
   acknowledge `routed`, `deferred`, or `ignored` through `monitorctl ack`.
   `deferred` returns the same item to the durable queue; a merely existing or
   completed Paperclip run is not success. Missing acknowledgements retry after
-  a bounded timeout, and each attempt has its own idempotency key.
+  a terminal run immediately or after a bounded ambiguity timeout when no run
+  can be found. Each attempt has its own idempotency key.
 - Before waking Dev Manager, the monitor resolves an exact GitHub URL mapping.
   An unassigned backlog mapping for a Project Todo event is parked with Dev
   Manager without waking it, then sent as `issueId`. This binds the explicit

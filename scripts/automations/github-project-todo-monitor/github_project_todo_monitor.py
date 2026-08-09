@@ -1751,9 +1751,7 @@ class TodoMonitor:
                 if run_id and transition.paperclip_run_id != run_id:
                     self.store.mark_delivery_accepted(transition.idempotency_key, now, run_id)
                 run_status = str(existing.get("status") or "")
-                attempt_started = parse_time(transition.attempt_started_at)
-                age = (now - attempt_started).total_seconds() if attempt_started else 0
-                if run_status not in LIVE_RUN_STATUSES and age >= self.config.outcome_timeout_seconds:
+                if run_status not in LIVE_RUN_STATUSES:
                     self.store.mark_retry(
                         transition,
                         now,

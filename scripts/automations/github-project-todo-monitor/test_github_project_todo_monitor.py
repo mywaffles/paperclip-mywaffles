@@ -562,7 +562,7 @@ class MonitorTest(unittest.TestCase):
             {
                 "id": "already-accepted-run",
                 "agentId": paperclip.agent_id,
-                "status": "succeeded",
+                "status": "running",
                 "contextSnapshot": {"taskKey": transition.idempotency_key},
             }
         )
@@ -619,19 +619,19 @@ class MonitorTest(unittest.TestCase):
                 "contextSnapshot": {"taskKey": transition.idempotency_key},
             }
         )
-        after_timeout = attempt + dt.timedelta(seconds=self.config.outcome_timeout_seconds)
+        terminal_at = attempt + dt.timedelta(seconds=1)
         monitor = TodoMonitor(
             self.config,
             self.store,
             FakeGitHub(snapshot(todo)),
             paperclip,
-            clock=lambda: after_timeout,
+            clock=lambda: terminal_at,
         )
         monitor.reconcile_deliveries()
         self.assertEqual(self.store.transition_counts()["pending"], 1)
-        self.assertIsNone(self.store.next_transition(after_timeout + dt.timedelta(seconds=59)))
+        self.assertIsNone(self.store.next_transition(terminal_at + dt.timedelta(seconds=59)))
         self.assertEqual(
-            self.store.next_transition(after_timeout + dt.timedelta(seconds=60)).idempotency_key,
+            self.store.next_transition(terminal_at + dt.timedelta(seconds=60)).idempotency_key,
             transition.idempotency_key,
         )
 
