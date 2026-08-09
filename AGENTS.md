@@ -116,6 +116,7 @@ Notes:
 ## 7. Verification Before Hand-off
 
 GitHub CI owns required repository-wide verification.
+Treat results for the final pull-request head commit as authoritative.
 
 Coding agents:
 
