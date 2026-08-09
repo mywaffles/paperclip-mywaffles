@@ -1151,15 +1151,23 @@ class StateStore:
                    issue_created_at, detected_at, delivery_status, delivery_attempts,
                    attempt_started_at, next_attempt_at, paperclip_run_id,
                    routing_outcome, outcome_reason, outcome_at, last_error
-              FROM transitions
+             FROM transitions
              WHERE delivery_status = 'pending'
-               AND (next_attempt_at IS NULL OR next_attempt_at <= ?)
              ORDER BY issue_created_at ASC, detected_at ASC, idempotency_key ASC
              LIMIT 1
             """,
-            (isoformat(now),),
         ).fetchone()
-        return Transition.from_row(row) if row else None
+        if row is None:
+            return None
+        transition = Transition.from_row(row)
+        retry_at = parse_time(transition.next_attempt_at)
+        return transition if retry_at is None or retry_at <= now else None
+
+    def has_pending_transitions(self) -> bool:
+        row = self.db.execute(
+            "SELECT 1 FROM transitions WHERE delivery_status = 'pending' LIMIT 1"
+        ).fetchone()
+        return row is not None
 
     def delivering_transitions(self) -> List[Transition]:
         rows = self.db.execute(
@@ -1715,6 +1723,8 @@ class TodoMonitor:
         now = self.clock()
         transition = self.store.next_transition(now)
         if transition is None:
+            if self.store.has_pending_transitions():
+                return "retry_wait"
             if self.store.periodic_audit_due(self.config, now):
                 run = self.paperclip.wake_periodic_audit(now)
                 self.store.record_periodic_audit(self.clock(), str(run["id"]))

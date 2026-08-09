@@ -515,6 +515,30 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(retried.idempotency_key, transition.idempotency_key)
         self.assertEqual(retried.routing_outcome, "deferred")
 
+    def test_deferred_oldest_issue_blocks_younger_work_until_retry(self):
+        older = issue_item("item-54", 54, "Backlog", "2026-08-08T11:00:00Z", "2026-04-01T00:00:00Z")
+        younger = issue_item("item-55", 55, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z")
+        self.baseline(older, younger)
+        older_todo = dataclasses.replace(older, status="Todo", status_updated_at="2026-08-08T12:06:00Z")
+        younger_todo = dataclasses.replace(younger, status="Todo", status_updated_at="2026-08-08T12:06:00Z")
+        now = when("2026-08-08T12:06:01Z")
+        self.store.apply_snapshot(self.config, snapshot(older_todo, younger_todo), now)
+        transition = self.store.next_transition(now)
+        self.store.mark_delivering(transition.idempotency_key, now)
+        self.store.acknowledge(
+            transition.idempotency_key,
+            "deferred",
+            "Capacity is temporarily unavailable",
+            now,
+            self.config.deferred_retry_seconds,
+        )
+        self.assertTrue(self.store.has_pending_transitions())
+        self.assertIsNone(self.store.next_transition(now + dt.timedelta(seconds=59)))
+        self.assertEqual(
+            self.store.next_transition(now + dt.timedelta(seconds=60)).issue_number,
+            54,
+        )
+
     def test_idle_router_dispatches_one_periodic_audit_per_interval(self):
         self.baseline(issue_item("item-53", 53, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z"))
         paperclip = FakePaperclip()
