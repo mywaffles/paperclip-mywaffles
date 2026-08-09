@@ -422,6 +422,7 @@ class WebhookIssue:
     issue_created_at: str
     issue_updated_at: str
     status: str
+    ignored: bool = False
 
 
 def parse_issue_webhook(config: Config, delivery_id: str, payload: object) -> WebhookIssue:
@@ -446,6 +447,8 @@ def parse_issue_webhook(config: Config, delivery_id: str, payload: object) -> We
     created_at = issue.get("created_at")
     updated_at = issue.get("updated_at")
     status = issue.get("state")
+    label = payload.get("label")
+    label_name = label.get("name") if isinstance(label, dict) else None
     if isinstance(number, bool) or not isinstance(number, int) or number < 1:
         raise MonitorError("GitHub issues payload omitted a valid issue number")
     if not isinstance(url, str) or not url.startswith(f"https://github.com/{repository}/issues/"):
@@ -470,6 +473,11 @@ def parse_issue_webhook(config: Config, delivery_id: str, payload: object) -> We
         issue_created_at=created_at,
         issue_updated_at=updated_at,
         status=status,
+        ignored=(
+            action in {"labeled", "unlabeled"}
+            and isinstance(label_name, str)
+            and label_name.casefold() in ROUTING_LABELS
+        ),
     )
 
 
@@ -916,18 +924,10 @@ class StateStore:
                 )
                 has_routing_label = any(label.casefold() in ROUTING_LABELS for label in item.labels)
                 if has_routing_label and item.repository and item.issue_number is not None:
-                    self.db.execute(
-                        """
-                        UPDATE transitions
-                           SET delivery_status = 'delivered', delivered_at = ?, routing_outcome = 'routed',
-                               outcome_reason = COALESCE(outcome_reason, 'Observed routing label during Project reconciliation'),
-                               outcome_at = COALESCE(outcome_at, ?), next_attempt_at = NULL, last_error = NULL
-                         WHERE repository = ? AND issue_number = ?
-                           AND source_kind = ?
-                           AND delivery_status IN ('pending', 'delivering')
-                        """,
-                        (now_text, now_text, item.repository, item.issue_number, PROJECT_EVENT_KIND),
-                    )
+                    # A routing label is necessary but not sufficient evidence of
+                    # assignment, reciprocal links, and Project status. Keep any
+                    # in-flight transition awaiting its explicit Dev Manager ack.
+                    pass
                 elif in_target:
                     if not all(
                         [
@@ -1073,7 +1073,7 @@ class StateStore:
         action = issue.action if issue else None
         repository = issue.repository if issue else None
         issue_number = issue.issue_number if issue else None
-        result = "queued" if issue else ("ping" if github_event == "ping" else "ignored")
+        result = "queued" if issue and not issue.ignored else ("ping" if github_event == "ping" else "ignored")
         with self.db:
             receipt = self.db.execute(
                 """
@@ -1095,7 +1095,7 @@ class StateStore:
             )
             if receipt.rowcount == 0:
                 return "duplicate"
-            if issue is not None:
+            if issue is not None and not issue.ignored:
                 key = webhook_key(
                     config,
                     issue.delivery_id,

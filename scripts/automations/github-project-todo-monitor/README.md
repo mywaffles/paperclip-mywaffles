@@ -33,7 +33,8 @@ create a `Route GitHub ToDo issues` wrapper.
 - Every `X-GitHub-Delivery` is recorded durably in SQLite. Receipt dedupe and
   outbox insertion occur in one transaction, so a redelivery cannot wake Dev
   Manager twice. GitHub `ping` deliveries are acknowledged and deduplicated but
-  never queued as work.
+  never queued as work. The router also records but does not enqueue changes to
+  its own `dev-claude-max` and `dev-codex-max` labels.
 - Project polling is configuration-gated to 5–15 seconds, leaving margin inside
   the 30-second detection target. Pagination completes before item state
   commits, so failed or partial queries cannot advance the board snapshot.
@@ -49,6 +50,7 @@ create a `Route GitHub ToDo issues` wrapper.
   available slot. Pending work remains queued while both coding agents work.
 - A delivery is marked `delivering` before the CLI call. Dev Manager must
   acknowledge `routed`, `deferred`, or `ignored` through `monitorctl ack`.
+  Observing a routing label never substitutes for that acknowledgment.
   `deferred` returns the same item to the durable queue; a merely existing or
   completed Paperclip run is not success. Missing acknowledgements retry after
   a terminal run immediately or after a bounded ambiguity timeout when no run

@@ -262,6 +262,22 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(self.baseline(existing), 0)
         self.assertEqual(self.store.transition_counts()["pending"], 0)
 
+    def test_routing_label_does_not_ack_inflight_transition(self):
+        backlog = issue_item("item-29", 29, "Backlog", "2026-08-08T10:00:00Z", "2026-01-01T00:00:00Z")
+        self.baseline(backlog)
+        todo = issue_item("item-29", 29, "Todo", "2026-08-08T11:00:00Z", "2026-01-01T00:00:00Z")
+        now = when("2026-08-08T11:00:01Z")
+        self.store.apply_snapshot(self.config, snapshot(todo), now)
+        transition = self.store.next_transition(now)
+        self.store.mark_delivering(transition.idempotency_key, now)
+        labeled = dataclasses.replace(todo, labels=("dev-codex-max",))
+
+        self.store.apply_snapshot(self.config, snapshot(labeled), now + dt.timedelta(seconds=10))
+
+        self.assertEqual(self.store.transition_counts()["delivering"], 1)
+        current = self.store.delivering_transitions()[0]
+        self.assertIsNone(current.routing_outcome)
+
     def test_real_transition_queues_once_while_item_stays_todo(self):
         backlog = issue_item("item-30", 30, "Backlog", "2026-08-08T11:00:00Z", "2026-02-01T00:00:00Z")
         self.baseline(backlog)
@@ -331,6 +347,17 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(wake["deliveryId"], "delivery-dedupe")
         self.assertEqual(wake["projectNumber"], 4)
         self.assertIn("Handle only this GitHub issue", wake["instruction"])
+
+    def test_routing_label_webhook_is_recorded_without_enqueueing(self):
+        receiver = self.start_receiver()
+        payload = webhook_payload(number=94, action="labeled")
+        payload["label"] = {"name": "dev-claude-max"}
+
+        status, value = self.post_webhook(receiver, payload, delivery_id="delivery-routing-label")
+
+        self.assertEqual((status, value["status"]), (200, "ignored"))
+        self.assertEqual(self.store.webhook_receipt_count(), 1)
+        self.assertEqual(self.store.transition_counts()["pending"], 0)
 
     def test_invalid_signature_is_rejected_without_a_receipt_or_wake(self):
         receiver = self.start_receiver()
