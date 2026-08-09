@@ -1,0 +1,5 @@
+__pycache__/
+config.json
+*.lock
+*.log*
+*.sqlite3*

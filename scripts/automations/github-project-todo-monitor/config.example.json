@@ -1,0 +1,60 @@
+{
+  "githubOwner": "YOUR_GITHUB_LOGIN",
+  "githubProjectNumber": 1,
+  "expectedProjectTitle": "Engineering",
+  "targetStatus": "Todo",
+  "githubWebhookHookId": "123456789",
+  "githubWebhookRepositories": [
+    "YOUR_GITHUB_LOGIN/YOUR_REPOSITORY"
+  ],
+  "webhookListenHost": "127.0.0.1",
+  "webhookListenPort": 8788,
+  "webhookPath": "/",
+  "webhookHealthPath": "/health",
+  "webhookPublicUrl": "https://YOUR_TAILSCALE_HOST.ts.net:10000",
+  "webhookSecretProvisionCommand": [
+    "/opt/homebrew/bin/op",
+    "read",
+    "op://YOUR_VAULT/Paperclip GitHub Router/GitHub Webhook Secret"
+  ],
+  "webhookSecretCommand": [
+    "/usr/bin/security",
+    "find-generic-password",
+    "-w",
+    "-s",
+    "com.paperclipai.github-project-todo-monitor",
+    "-a",
+    "github-webhook-secret"
+  ],
+  "webhookSecretEnvVar": "GITHUB_ROUTER_WEBHOOK_SECRET",
+  "webhookMaxBodyBytes": 1048576,
+  "pollIntervalSeconds": 10,
+  "githubCommand": ["/opt/homebrew/bin/gh"],
+  "paperclipCommand": ["paperclipai"],
+  "paperclipApiBase": "https://YOUR_PAPERCLIP_HOST.ts.net",
+  "paperclipCompanyId": "YOUR_PAPERCLIP_COMPANY_ID",
+  "paperclipAgent": "dev-manager",
+  "paperclipCodingAgents": ["dev-claude-max", "dev-codex-max"],
+  "paperclipApiKeyProvisionCommand": [
+    "/opt/homebrew/bin/op",
+    "read",
+    "op://YOUR_VAULT/Paperclip GitHub Router/Paperclip Board API Key"
+  ],
+  "paperclipApiKeyCommand": [
+    "/usr/bin/security",
+    "find-generic-password",
+    "-w",
+    "-s",
+    "com.paperclipai.github-project-todo-monitor",
+    "-a",
+    "paperclip-board-api-key"
+  ],
+  "paperclipApiKeyEnvVar": "PAPERCLIP_MONITOR_API_KEY",
+  "commandTimeoutSeconds": 12,
+  "deliveryAmbiguitySeconds": 120,
+  "outcomeTimeoutSeconds": 900,
+  "deferredRetrySeconds": 60,
+  "auditIntervalSeconds": 1800,
+  "maxLogBytes": 1048576,
+  "logBackups": 3
+}
