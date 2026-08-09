@@ -761,6 +761,7 @@ class MonitorTest(unittest.TestCase):
         self.assertEqual(update_command[:3], ["paperclipai", "issue", "update"])
         self.assertEqual(update_command[3], "mapped-issue-id")
         self.assertEqual(update_command[update_command.index("--assignee-agent-id") + 1], "manager-id")
+        self.assertEqual(update_command[update_command.index("--status") + 1], "backlog")
         command = runner.calls[3][0]
         self.assertEqual(command[:3], ["paperclipai", "agent", "wake"])
         self.assertEqual(command[3], "dev-manager")
@@ -777,6 +778,37 @@ class MonitorTest(unittest.TestCase):
         payload = json.loads(command[command.index("--payload") + 1])
         self.assertEqual(payload["issueNumber"], 80)
         self.assertEqual(payload["taskKey"], transition.idempotency_key)
+        self.assertEqual(payload["issueId"], "mapped-issue-id")
+
+    def test_todo_mapping_is_parked_before_issue_bound_wake(self):
+        backlog = issue_item("item-84", 84, "Backlog", "2026-08-08T11:00:00Z", "2026-05-01T00:00:00Z")
+        self.baseline(backlog)
+        todo = issue_item("item-84", 84, "Todo", "2026-08-08T12:10:00Z", "2026-05-01T00:00:00Z")
+        now = when("2026-08-08T12:10:01Z")
+        self.store.apply_snapshot(self.config, snapshot(todo), now)
+        transition = self.store.next_transition(now)
+        runner = CaptureRunner(
+            [
+                [
+                    {
+                        "id": "mapped-issue-id",
+                        "identifier": "MAT-84",
+                        "description": "GitHub: https://github.com/mywaffles/newco.core/issues/84",
+                        "status": "todo",
+                        "assigneeAgentId": None,
+                    }
+                ],
+                [{"id": "manager-id", "urlKey": "dev-manager", "name": "Dev Manager"}],
+                {"id": "mapped-issue-id", "status": "backlog", "assigneeAgentId": "manager-id"},
+                {"id": "wake-run", "status": "queued"},
+            ]
+        )
+
+        PaperclipClient(self.config, runner=runner).wake(transition)
+
+        update_command = runner.calls[2][0]
+        self.assertEqual(update_command[update_command.index("--status") + 1], "backlog")
+        payload = json.loads(runner.calls[3][0][runner.calls[3][0].index("--payload") + 1])
         self.assertEqual(payload["issueId"], "mapped-issue-id")
 
     def test_mapping_owned_by_coder_is_not_stolen(self):

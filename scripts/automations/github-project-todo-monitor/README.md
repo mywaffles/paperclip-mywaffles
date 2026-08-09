@@ -56,8 +56,8 @@ create a `Route GitHub ToDo issues` wrapper.
   a terminal run immediately or after a bounded ambiguity timeout when no run
   can be found. Each attempt has its own idempotency key.
 - Before waking Dev Manager, the monitor resolves an exact GitHub URL mapping.
-  An unassigned backlog mapping for a Project Todo event is parked with Dev
-  Manager without waking it, then sent as `issueId`. This binds the explicit
+  An unassigned backlog or Todo mapping for a Project Todo event is parked in
+  backlog with Dev Manager without waking it, then sent as `issueId`. This binds the explicit
   router run to the real issue so comments and assignment satisfy Paperclip's
   issue-run controls. Mappings already owned by another agent are not stolen.
 - On a first encounter, Dev Manager creates the mapping and acknowledges

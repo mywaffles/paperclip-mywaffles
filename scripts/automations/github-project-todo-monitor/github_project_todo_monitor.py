@@ -1602,7 +1602,7 @@ class PaperclipClient:
         if (
             transition.source_kind == PROJECT_EVENT_KIND
             and transition.to_status == self.config.target_status
-            and mapped.get("status") == "backlog"
+            and mapped.get("status") in {"backlog", "todo"}
             and not assignee_id
         ):
             updated = self._run(
@@ -1612,11 +1612,17 @@ class PaperclipClient:
                     mapped["id"],
                     "--assignee-agent-id",
                     manager_id,
+                    "--status",
+                    "backlog",
                 ]
             )
-            if not isinstance(updated, dict) or updated.get("assigneeAgentId") != manager_id:
+            if (
+                not isinstance(updated, dict)
+                or updated.get("assigneeAgentId") != manager_id
+                or updated.get("status") != "backlog"
+            ):
                 raise MonitorError(
-                    f"Paperclip mapping {mapped['id']} was not assigned to Dev Manager before wake"
+                    f"Paperclip mapping {mapped['id']} was not parked with Dev Manager before wake"
                 )
             return mapped["id"]
         return None
