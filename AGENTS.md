@@ -115,24 +115,18 @@ Notes:
 
 ## 7. Verification Before Hand-off
 
-Default local/agent test path:
+GitHub CI owns required repository-wide verification.
+Treat results for the final pull-request head commit as authoritative.
 
-```sh
-pnpm test
-```
+Coding agents:
 
-This is the cheap default and only runs the Vitest suite. Browser suites stay opt-in:
+- Add or update tests relevant to the changed behavior.
+- Run the smallest relevant tests while developing.
+- Run focused lint or type checks when the changed area requires them.
+- Do not run repository-wide suites, builds, or browser suites unless focused debugging requires them.
+- Report only checks actually run.
 
-```sh
-pnpm test:e2e
-pnpm test:release-smoke
-```
-
-Run the browser suites only when your change touches them or when you are explicitly verifying CI/release flows.
-
-For normal issue work, run the smallest relevant verification first. Do not default to repo-wide typecheck/build/test on every heartbeat when a narrower check is enough to prove the change.
-
-Run this full check before claiming repo work done in a PR-ready hand-off, or when the change scope is broad enough that targeted checks are not sufficient:
+Pull-request CI runs the required repository-wide checks:
 
 ```sh
 pnpm -r typecheck
@@ -140,7 +134,7 @@ pnpm test:run
 pnpm build
 ```
 
-If anything cannot be run, explicitly report what was not run and why.
+Testing smoke-tests new user-visible features after required CI passes. Run browser, visual, and release suites through CI or an assigned Testing review.
 
 ## 8. API and Auth Expectations
 
@@ -178,7 +172,7 @@ When creating a pull request (via `gh pr create` or any other method), you **mus
 A change is done when all are true:
 
 1. Behavior matches `doc/SPEC-implementation.md`
-2. Typecheck, tests, and build pass
+2. Required CI passes for the final pull-request head commit
 3. Contracts are synced across db/shared/server/ui
 4. Docs updated when behavior or commands change
 5. PR description follows the [PR template](.github/PULL_REQUEST_TEMPLATE.md) with all sections filled in (including Model Used)

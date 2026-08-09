@@ -99,7 +99,7 @@
 - [ ] I have either (a) linked existing issues with `Fixes: #` / `Closes #` / `Refs #` OR (b) described the issue in-PR following the relevant issue template
 - [ ] I have not referenced internal/instance-local Paperclip issues or links (only public GitHub `#NNN` / `github.com/paperclipai/paperclip` URLs)
 - [ ] My branch name describes the change (e.g. `docs/...`, `fix/...`) and contains no internal Paperclip ticket id or instance-derived details
-- [ ] I have run tests locally and they pass
+- [ ] I have run the relevant focused tests locally and recorded checks deferred to CI
 - [ ] I have added or updated tests where applicable
 - [ ] I have updated relevant documentation to reflect my changes
 - [ ] I have considered and documented any risks above
