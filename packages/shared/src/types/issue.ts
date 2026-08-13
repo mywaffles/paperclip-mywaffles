@@ -84,6 +84,21 @@ export interface IssueLabel {
   updatedAt: Date;
 }
 
+export interface IssueType {
+  id: string;
+  companyId: string;
+  key: string;
+  name: string;
+  description: string | null;
+  color: string;
+  icon: string | null;
+  fieldDefinitions: import("../validators/issue-type.js").IssueTypeFieldDefinition[];
+  isDefault: boolean;
+  archivedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export interface IssueAssigneeAdapterOverrides {
   modelProfile?: ModelProfileKey;
   adapterConfig?: Record<string, unknown>;
@@ -772,6 +787,8 @@ export type IssueChanges = Record<string, IssueChangeReceiptEntry>;
 export interface Issue {
   id: string;
   companyId: string;
+  issueTypeId?: string | null;
+  customFields?: import("../validators/issue-type.js").IssueCustomFieldValues;
   projectId: string | null;
   projectWorkspaceId: string | null;
   goalId: string | null;
@@ -858,6 +875,8 @@ export type CompactIssue = Pick<
   Issue,
   | "id"
   | "companyId"
+  | "issueTypeId"
+  | "customFields"
   | "projectId"
   | "projectWorkspaceId"
   | "goalId"

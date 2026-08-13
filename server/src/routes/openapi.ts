@@ -28,6 +28,8 @@ import {
   updateIssueSchema,
   stalledReviewDecisionSchema,
   createIssueLabelSchema,
+  createIssueTypeSchema,
+  updateIssueTypeSchema,
   addIssueCommentSchema,
   checkoutIssueSchema,
   linkIssueApprovalSchema,
@@ -924,6 +926,7 @@ const CREATED_OPERATIONS = new Set([
   "POST /api/environments/{environmentId}/custom-image-setup-sessions",
   "POST /api/companies/{companyId}/goals",
   "POST /api/companies/{companyId}/labels",
+  "POST /api/companies/{companyId}/issue-types",
   "POST /api/issues/{id}/documents/{key}/annotations",
   "POST /api/issues/{id}/documents/{key}/annotations/{threadId}/comments",
   "POST /api/routines/{id}/description/annotations",
@@ -2575,6 +2578,51 @@ registry.registerPath({
   summary: "Delete a label",
   request: { params: z.object({ labelId: z.string() }) },
   responses: { 200: r.ok(), 401: r.unauthorized },
+});
+
+registry.registerPath({
+  method: "get",
+  path: "/api/companies/{companyId}/issue-types",
+  tags: ["issues"],
+  summary: "List custom issue types in a company",
+  request: {
+    params: z.object({ companyId: z.string() }),
+    query: z.object({ includeArchived: z.enum(["true", "false"]).optional() }),
+  },
+  responses: { 200: r.ok(), 401: r.unauthorized },
+});
+
+registry.registerPath({
+  method: "post",
+  path: "/api/companies/{companyId}/issue-types",
+  tags: ["issues"],
+  summary: "Create a custom issue type",
+  request: {
+    params: z.object({ companyId: z.string() }),
+    body: jsonBody(createIssueTypeSchema),
+  },
+  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden },
+});
+
+registry.registerPath({
+  method: "patch",
+  path: "/api/issue-types/{id}",
+  tags: ["issues"],
+  summary: "Update a custom issue type",
+  request: {
+    params: z.object({ id: z.string() }),
+    body: jsonBody(updateIssueTypeSchema),
+  },
+  responses: { 200: r.ok(), 400: r.badRequest, 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
+});
+
+registry.registerPath({
+  method: "delete",
+  path: "/api/issue-types/{id}",
+  tags: ["issues"],
+  summary: "Archive a custom issue type",
+  request: { params: z.object({ id: z.string() }) },
+  responses: { 200: r.ok(), 401: r.unauthorized, 403: r.forbidden, 404: r.notFound },
 });
 
 // ─── Projects ────────────────────────────────────────────────────────────────

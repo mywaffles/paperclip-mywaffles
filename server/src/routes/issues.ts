@@ -2239,6 +2239,8 @@ function toCompactIssue(issue: any): CompactIssue {
   return {
     id: issue.id,
     companyId: issue.companyId,
+    issueTypeId: issue.issueTypeId,
+    customFields: issue.customFields,
     projectId: issue.projectId,
     projectWorkspaceId: issue.projectWorkspaceId,
     goalId: issue.goalId,
