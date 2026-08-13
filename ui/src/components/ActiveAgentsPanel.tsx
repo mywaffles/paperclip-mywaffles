@@ -93,7 +93,14 @@ export function ActiveAgentsPanel({
   usePublishSharedQueryData(sharedLiveRuns, liveRuns, liveRunsUpdatedAt);
 
   const runs = liveRuns ?? [];
-  const visibleRuns = useMemo(() => runs.slice(0, cardLimit), [cardLimit, runs]);
+  // Running first, then queued, then completed; the server's newest-first
+  // order is preserved within each tier (Array.prototype.sort is stable).
+  const orderedRuns = useMemo(() => {
+    const tier = (run: LiveRunForIssue) =>
+      run.status === "running" ? 0 : run.status === "queued" ? 1 : 2;
+    return [...runs].sort((a, b) => tier(a) - tier(b));
+  }, [runs]);
+  const visibleRuns = useMemo(() => orderedRuns.slice(0, cardLimit), [cardLimit, orderedRuns]);
   const hiddenRunCount = Math.max(0, runs.length - visibleRuns.length);
   const visibleIssueIds = useMemo(
     () => [...new Set(visibleRuns.map((run) => run.issueId).filter((issueId): issueId is string => Boolean(issueId)))],
